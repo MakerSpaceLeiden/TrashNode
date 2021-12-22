@@ -1,5 +1,4 @@
 
-
 #include <PowerNodeV11.h> // -- this is an olimex board.
 
 #include <ACNode.h>
@@ -8,6 +7,10 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <ArduinoJson.h>
+#include <time.h>
+
+#include "acmerootcert.h"
 
 #define MACHINE "trash"
 #define LEDPIN_RED 5
@@ -18,58 +21,86 @@
 #define BUTTONPIN_YELLOW 14
 #define BUTTONPIN_GREEN 15
 
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 3600;
+const int   daylightOffset_sec = 0;
+
 ACNode node = ACNode(MACHINE);
+
+MachineState machinestate = MachineState();
+enum { ACTIVE = MachineState::START_PRIVATE_STATES, DEACTIVATING };
+
 ButtonDebounce buttonRed(BUTTONPIN_RED, 250);
 ButtonDebounce buttonYellow(BUTTONPIN_YELLOW, 250);
 ButtonDebounce buttonGreen(BUTTONPIN_GREEN, 250);
-MachineState machinestate = MachineState();
-enum { ACTIVE = MachineState::START_PRIVATE_STATES, DEACTIVATING };
 
 LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
 LED green(LEDPIN_GREEN);
 
 TelnetSerialStream telnetSerialStream = TelnetSerialStream();
-WiFiClient client;
-
-void testClient(const char * host, uint16_t port)
-{
-  Serial.print("\nconnecting to ");
-  Serial.println(host);
-
-  WiFiClient client;
-  if (!client.connect(host, port)) {
-    Serial.println("connection failed");
-    return;
-  }
-  client.printf("GET /chore HTTP/1.1\r\nHost: %s\r\n\r\n", host);
-  while (client.connected() && !client.available());
-  while (client.available()) {
-    Serial.write(client.read());
-  }
-
-  Serial.println("closing connection\n");
-  client.stop();
-}
-
-void fetch() {
+WiFiClientSecure client;
+ 
+DynamicJsonDocument doc(4096);
+unsigned long lastUpdatedChores = 0;
+time_t nextCollection = 0;
+  
+void fetchChores() {
   
   HTTPClient http;
-  if (!http.begin(client, "http://10.1.0.168:8080/chore" )) {
-    Log.println("Failed to create fetch of state from server.");
+  if (!http.begin(client, "https://makerspaceleiden.nl/crm/chores/api/v1/list/empty_trash" )) {
+    Log.println("failed to load chores from server");
     return;
   }
 
   int httpStatus = http.GET();
 
   if (httpStatus != 200) {
-    Log.printf("GET... failed, error: %d\n", httpStatus);
+    Log.printf("GET chores failed, error: %d\n", httpStatus);
     return;
   };
 
-  String payload = http.getString();
+  DeserializationError error = deserializeJson(doc, http.getString());
+  if (error) {
+    Log.println("error parsing json");
+    return;
+  }
 
-  Log.println(payload);
+  time_t timestamp = 0;
+  JsonArray chores = doc["chores"].as<JsonArray>();
+  if (!chores) {
+    Log.println("doc[\"chores\"] is not an array");
+    return;
+  }
+  for (JsonVariant chore : chores) {
+    JsonArray events = chore["events"].as<JsonArray>();
+    if (!events) {
+      Log.println("chore[\"events\"] is not an array");
+      return;
+    }
+    for (JsonVariant event : events) {
+       timestamp = event["when"]["timestamp"]; // unix epoch
+       if (timestamp > 0) break; 
+    }
+    if (timestamp > 0) break;
+  }
+  if (timestamp == 0) {
+    Log.println("did not find a timestamp for next collection in json");
+    return;
+  } 
+  Log.printf("json says: next collection @%d\n", timestamp);
+  nextCollection = timestamp;
+}
+
+time_t epoch() {
+  time_t now = 0;
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Log.println("failed to get time");
+    return now;
+  }
+  time(&now);
+  return now;
 }
 
 void onButtonPressed(int pin) {
@@ -93,7 +124,7 @@ void setup() {
   yellow.set(LED::LED_OFF);
   green.set(LED::LED_OFF);
 
-  // client.setInsecure();//skip verification
+  client.setCACert(rootCACertificate);
 
   machinestate.setOnChangeCallback(MachineState::ALL_STATES, [](MachineState::machinestate_t last, MachineState::machinestate_t current) -> void {
     Log.print("state changed: "); Log.println(current);
@@ -110,6 +141,9 @@ void setup() {
   
   node.onConnect([]() {
     Log.println("Connected");
+    //init and get the time
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    epoch();
     machinestate = MachineState::WAITINGFORCARD;
   });
   
@@ -147,16 +181,34 @@ void setup() {
   Log.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 }
 
-unsigned long lastUpdatedChores = 0L;
-
 void loop() {
   node.loop();
   long now = millis();
-  if (now - lastUpdatedChores > 10*1000) {
-    lastUpdatedChores = now;
-    fetch();
-  }
+  time_t epochNow = epoch();
   switch (machinestate.state()) {
+    case MachineState::WAITINGFORCARD:
+      if ((lastUpdatedChores == 0) || (now - lastUpdatedChores) > 1 * 60 * 60 * 1000) {
+        Log.println("updating chores");
+        lastUpdatedChores = now;
+        fetchChores();
+      }  
+      // yeah! actual business logic :-)
+      if (nextCollection == 0 || epochNow == 0) {
+        red.set(LED::LED_OFF);
+        yellow.set(LED::LED_FLASH); // panic!
+        green.set(LED::LED_OFF);
+      } else {
+        if ((nextCollection - epochNow) < 15 * 60 * 60) {
+          red.set(LED::LED_FLASH); // put it outside!
+          yellow.set(LED::LED_OFF);
+          green.set(LED::LED_OFF);
+        } else {
+          red.set(LED::LED_OFF); 
+          yellow.set(LED::LED_OFF);
+          green.set(LED::LED_FLASH); // no action required
+        }
+      }
+      break;
     case ACTIVE:
       break;
     case DEACTIVATING:
