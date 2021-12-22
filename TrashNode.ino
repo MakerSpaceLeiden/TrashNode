@@ -14,10 +14,14 @@
 #define LEDPIN_YELLOW 4
 #define LEDPIN_GREEN 2
 
-#define BUTTON 34
+#define BUTTONPIN_RED 13
+#define BUTTONPIN_YELLOW 14
+#define BUTTONPIN_GREEN 15
 
 ACNode node = ACNode(MACHINE);
-ButtonDebounce button(BUTTON, 250);
+ButtonDebounce buttonRed(BUTTONPIN_RED, 250);
+ButtonDebounce buttonYellow(BUTTONPIN_YELLOW, 250);
+ButtonDebounce buttonGreen(BUTTONPIN_GREEN, 250);
 MachineState machinestate = MachineState();
 enum { ACTIVE = MachineState::START_PRIVATE_STATES, DEACTIVATING };
 
@@ -68,6 +72,15 @@ void fetch() {
   Log.println(payload);
 }
 
+void onButtonPressed(int pin) {
+   Log.printf("button pressed: %d\n", pin);
+   if (machinestate.state() == MachineState::WAITINGFORCARD) {
+      machinestate = ACTIVE;
+   } else {
+     Log.println("button pressed while not ready");
+   }
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println("\n\n\n");
@@ -110,8 +123,16 @@ void setup() {
     machinestate = MachineState::WAITINGFORCARD;
   });
 
-  button.setCallback([](int state) {
-    machinestate = ACTIVE;
+  buttonRed.setCallback([](int state) {
+    onButtonPressed(BUTTONPIN_RED);
+  });
+
+  buttonYellow.setCallback([](int state) {
+    onButtonPressed(BUTTONPIN_YELLOW);
+  });
+
+  buttonGreen.setCallback([](int state) {
+    onButtonPressed(BUTTONPIN_GREEN);
   });
 
   node.addHandler(&machinestate);
