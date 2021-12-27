@@ -3,23 +3,32 @@
 
 #include <ACNode.h>
 #include "MachineState.h"
-#include <ButtonDebounce.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <time.h>
+#include <Wire.h>
+#include <Adafruit_MCP23X17.h>
 
 #include "acmerootcert.h"
+#include "MCPButtonDebounce.h"
 
 #define MACHINE "trash"
+
+const uint8_t I2C_SDA_PIN = 13; // i2c SDA Pin, ext 2, pin 10
+const uint8_t I2C_SCL_PIN = 16; // i2c SCL Pin, ext 2, pin 7
+
+const uint8_t mcp_i2c_addr = 0x20;
+
 #define LEDPIN_RED 5
 #define LEDPIN_YELLOW 4
 #define LEDPIN_GREEN 2
 
-#define BUTTONPIN_RED 13
-#define BUTTONPIN_YELLOW 14
-#define BUTTONPIN_GREEN 15
+// buttons 1..3 on MCP GPA0..GPA2, see https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library
+#define BUTTONPIN_RED 0 
+#define BUTTONPIN_YELLOW 1
+#define BUTTONPIN_GREEN 2
 
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 3600;
@@ -27,12 +36,16 @@ const int   daylightOffset_sec = 3600;
 
 ACNode node = ACNode(MACHINE);
 
+TwoWire i2cBus = TwoWire((uint8_t)0);
+
 MachineState machinestate = MachineState();
 enum { ACTIVE = MachineState::START_PRIVATE_STATES, DEACTIVATING };
 
-ButtonDebounce buttonRed(BUTTONPIN_RED, 250);
-ButtonDebounce buttonYellow(BUTTONPIN_YELLOW, 250);
-ButtonDebounce buttonGreen(BUTTONPIN_GREEN, 250);
+Adafruit_MCP23X17 mcp;
+
+MCPButtonDebounce buttonRed(&mcp, BUTTONPIN_RED, 250);
+MCPButtonDebounce buttonYellow(&mcp, BUTTONPIN_YELLOW, 250);
+MCPButtonDebounce buttonGreen(&mcp, BUTTONPIN_GREEN, 250);
 
 LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
@@ -125,9 +138,16 @@ void setup() {
   Serial.println("\n\n\n");
   Serial.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 
+  // i2C Setup
+  i2cBus.begin(I2C_SDA_PIN, I2C_SCL_PIN); // , 50000);
+  
   machinestate.defineState(ACTIVE, "Active", LED::LED_ERROR, 5 * 1000, DEACTIVATING);
   machinestate.defineState(DEACTIVATING, "Deactivating", LED::LED_ERROR, 1 * 1000, MachineState::WAITINGFORCARD);
 
+  if (!mcp.begin_I2C(mcp_i2c_addr, &i2cBus)) {
+    Log.println("error TODO");
+  }
+  
   red.set(LED::LED_OFF);
   yellow.set(LED::LED_OFF);
   green.set(LED::LED_OFF);
