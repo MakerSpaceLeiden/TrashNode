@@ -23,7 +23,7 @@
 
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 3600;
-const int   daylightOffset_sec = 0;
+const int   daylightOffset_sec = 3600;
 
 ACNode node = ACNode(MACHINE);
 
@@ -40,15 +40,15 @@ LED green(LEDPIN_GREEN);
 
 TelnetSerialStream telnetSerialStream = TelnetSerialStream();
 WiFiClientSecure client;
- 
+
 DynamicJsonDocument doc(4096);
 unsigned long lastUpdatedChores = 0;
 time_t nextCollection = 0;
-  
+
 void fetchChores() {
-  
+
   HTTPClient http;
-  if (!http.begin(client, "https://makerspaceleiden.nl/crm/chores/api/v1/list/empty_trash" )) {
+  if (!http.begin(client, "https://makerspaceleiden.nl/crm/chores/api/v1/list/empty_trash_small" )) {
     Log.println("failed to load chores from server");
     return;
   }
@@ -79,15 +79,15 @@ void fetchChores() {
       return;
     }
     for (JsonVariant event : events) {
-       timestamp = event["when"]["timestamp"]; // unix epoch
-       if (timestamp > 0) break; 
+      timestamp = event["when"]["timestamp"]; // unix epoch
+      if (timestamp > 0) break;
     }
     if (timestamp > 0) break;
   }
   if (timestamp == 0) {
     Log.println("did not find a timestamp for next collection in json");
     return;
-  } 
+  }
   Log.printf("json says: next collection @%d\n", timestamp);
   nextCollection = timestamp;
 }
@@ -99,17 +99,18 @@ time_t epoch() {
     Log.println("failed to get time");
     return now;
   }
+  // Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
   time(&now);
   return now;
 }
 
 void onButtonPressed(int pin) {
-   Log.printf("button pressed: %d\n", pin);
-   if (machinestate.state() == MachineState::WAITINGFORCARD) {
-      machinestate = ACTIVE;
-   } else {
-     Log.println("button pressed while not ready");
-   }
+  Log.printf("button pressed: %d\n", pin);
+  if (machinestate.state() == MachineState::WAITINGFORCARD) {
+    machinestate = ACTIVE;
+  } else {
+    Log.println("button pressed while not ready");
+  }
 }
 
 void setup() {
@@ -119,7 +120,7 @@ void setup() {
 
   machinestate.defineState(ACTIVE, "Active", LED::LED_ERROR, 5 * 1000, DEACTIVATING);
   machinestate.defineState(DEACTIVATING, "Deactivating", LED::LED_ERROR, 1 * 1000, MachineState::WAITINGFORCARD);
-  
+
   red.set(LED::LED_OFF);
   yellow.set(LED::LED_OFF);
   green.set(LED::LED_OFF);
@@ -138,7 +139,7 @@ void setup() {
       green.set(LED::LED_OFF);
     }
   });
-  
+
   node.onConnect([]() {
     Log.println("Connected");
     //init and get the time
@@ -146,12 +147,12 @@ void setup() {
     epoch();
     machinestate = MachineState::WAITINGFORCARD;
   });
-  
+
   node.onDisconnect([]() {
     Log.println("Disconnected");
     machinestate = MachineState::NOCONN;
   });
-  
+
   node.onError([](acnode_error_t err) {
     Log.printf("Error %d\n", err);
     machinestate = MachineState::WAITINGFORCARD;
@@ -191,21 +192,22 @@ void loop() {
         Log.println("updating chores");
         lastUpdatedChores = now;
         fetchChores();
-      }  
+      }
       // yeah! actual business logic :-)
       if (nextCollection == 0 || epochNow == 0) {
-        red.set(LED::LED_OFF);
-        yellow.set(LED::LED_FLASH); // panic!
-        green.set(LED::LED_OFF);
+        // panic!
+        red.set(LED::LED_FLASH);
+        yellow.set(LED::LED_FLASH); 
+        green.set(LED::LED_FLASH);
       } else {
         if ((nextCollection - epochNow) < 15 * 60 * 60) {
-          red.set(LED::LED_FLASH); // put it outside!
+          red.set(LED::LED_FLASH); // it should be outside
           yellow.set(LED::LED_OFF);
           green.set(LED::LED_OFF);
         } else {
-          red.set(LED::LED_OFF); 
+          red.set(LED::LED_OFF);
           yellow.set(LED::LED_OFF);
-          green.set(LED::LED_FLASH); // no action required
+          green.set(LED::LED_FLASH); // it should be inside
         }
       }
       break;
@@ -215,6 +217,6 @@ void loop() {
       break;
     default:
       break;
-   }
+  }
 
 }
