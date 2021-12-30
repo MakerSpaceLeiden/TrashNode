@@ -104,10 +104,17 @@ time_t epoch() {
   return now;
 }
 
+int wantedPosition=-1; 
+int actualPosition=-1;
+
+int previousWanted=-2;
+int previousActual=-2;
+
 void onButtonPressed(int pin) {
   Log.printf("button pressed: %d\n", pin);
   if (machinestate.state() == MachineState::WAITINGFORCARD) {
-    machinestate = ACTIVE;
+    // machinestate = ACTIVE;
+    actualPosition = pin;
   } else {
     Log.println("button pressed while not ready");
   }
@@ -178,8 +185,72 @@ void setup() {
 
   node.begin(BOARD_OLIMEX); // OLIMEX
 
-
   Log.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
+}
+
+void showState() {
+  if (previousWanted == wantedPosition && previousActual == actualPosition) return; // no change
+  
+  Log.printf("actual %d wanted %d\n", actualPosition, wantedPosition);\
+
+  if (actualPosition <= 0 && wantedPosition <= 0) {
+    // everything is unknown  
+    red.set(LED::LED_FLASH);
+    yellow.set(LED::LED_FLASH); 
+    green.set(LED::LED_FLASH);
+  }
+  
+  if (actualPosition > 0 && wantedPosition <=0) {
+    // actualPosition known, wanted not
+    if (actualPosition == BUTTONPIN_RED) {
+      red.set(LED::LED_ON); // it in outside
+      yellow.set(LED::LED_FLASH);
+      green.set(LED::LED_FLASH);
+    } else if (actualPosition == BUTTONPIN_YELLOW) {
+      red.set(LED::LED_FLASH);
+      yellow.set(LED::LED_ON); // it is lost
+      green.set(LED::LED_FLASH);
+    } else if (actualPosition == BUTTONPIN_GREEN) {
+      red.set(LED::LED_FLASH);
+      yellow.set(LED::LED_FLASH);
+      green.set(LED::LED_ON); // it is inside
+    }
+    return;
+  }
+
+  if (actualPosition <= 0 && wantedPosition > 0) {
+    // actual Position not known, wanted known
+    if (wantedPosition == BUTTONPIN_RED) {
+      red.set(LED::LED_FLASH); // it should be outside     
+    } else {
+      green.set(LED::LED_FLASH); // it should be inside
+    }
+    return;
+  }
+
+  // happy
+  if (actualPosition == BUTTONPIN_RED) {
+    red.set(LED::LED_ON); // it in outside
+    yellow.set(LED::LED_OFF);
+    green.set(LED::LED_OFF);
+  } else if (actualPosition == BUTTONPIN_YELLOW) {
+    red.set(LED::LED_OFF);
+    yellow.set(LED::LED_ON); // it is lost
+    green.set(LED::LED_OFF);
+  } else if (actualPosition == BUTTONPIN_GREEN) {
+    red.set(LED::LED_OFF);
+    yellow.set(LED::LED_OFF);
+    green.set(LED::LED_ON); // it is inside
+  }
+  if (actualPosition != wantedPosition) {
+    if (wantedPosition == BUTTONPIN_RED) {
+      red.set(LED::LED_FLASH); // it should be outside but it is not      
+    } else {
+      green.set(LED::LED_FLASH); // it should be inside but it is not              
+    }
+  }  
+  previousWanted = wantedPosition;
+  previousActual = actualPosition;
 }
 
 void loop() {
@@ -196,18 +267,12 @@ void loop() {
       // yeah! actual business logic :-)
       if (nextCollection == 0 || epochNow == 0) {
         // panic!
-        red.set(LED::LED_FLASH);
-        yellow.set(LED::LED_FLASH); 
-        green.set(LED::LED_FLASH);
+        wantedPosition = -1; // unknown
       } else {
         if ((nextCollection - epochNow) < 15 * 60 * 60) {
-          red.set(LED::LED_FLASH); // it should be outside
-          yellow.set(LED::LED_OFF);
-          green.set(LED::LED_OFF);
+          wantedPosition = BUTTONPIN_RED; // outside
         } else {
-          red.set(LED::LED_OFF);
-          yellow.set(LED::LED_OFF);
-          green.set(LED::LED_FLASH); // it should be inside
+          wantedPosition = BUTTONPIN_GREEN; // inside
         }
       }
       break;
@@ -218,5 +283,6 @@ void loop() {
     default:
       break;
   }
+  showState();
 
 }
