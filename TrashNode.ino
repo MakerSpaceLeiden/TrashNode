@@ -1,6 +1,5 @@
 
 #include <PowerNodeV11.h> // -- this is an olimex board.
-
 #include <ACNode.h>
 #include "MachineState.h"
 #include <WiFiClientSecure.h>
@@ -16,8 +15,14 @@
 
 #define MACHINE "trash"
 
+#ifndef OTA_PASSWD
+#define OTA_PASSWD "Foo"
+#warning "Setting easy to guess/hardcoded OTA password."
+#endif
+
 const uint8_t I2C_SDA_PIN = 13; // i2c SDA Pin, ext 2, pin 10
 const uint8_t I2C_SCL_PIN = 16; // i2c SCL Pin, ext 2, pin 7
+#define RFID_I2C_FREQ   (100000U)
 
 const uint8_t mcp_i2c_addr = 0x20;
 
@@ -35,17 +40,18 @@ const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
 ACNode node = ACNode(MACHINE);
+OTA ota = OTA(OTA_PASSWD);
 
-TwoWire i2cBus = TwoWire((uint8_t)0);
+MqttLogStream mqttlogStream = MqttLogStream();
 
 MachineState machinestate = MachineState();
 enum { ACTIVE = MachineState::START_PRIVATE_STATES, DEACTIVATING };
 
 Adafruit_MCP23X17 mcp;
 
-MCPButtonDebounce buttonRed(&mcp, BUTTONPIN_RED, 250);
-MCPButtonDebounce buttonYellow(&mcp, BUTTONPIN_YELLOW, 250);
-MCPButtonDebounce buttonGreen(&mcp, BUTTONPIN_GREEN, 250);
+MCPButtonDebounce *buttonRed; 
+MCPButtonDebounce *buttonYellow;
+MCPButtonDebounce *buttonGreen;
 
 LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
@@ -123,14 +129,18 @@ int actualPosition=-1;
 int previousWanted=-2;
 int previousActual=-2;
 
-void onButtonPressed(int pin) {
-  Log.printf("button pressed: %d\n", pin);
-  if (machinestate.state() == MachineState::WAITINGFORCARD) {
-    // machinestate = ACTIVE;
-    actualPosition = pin;
-  } else {
-    Log.println("button pressed while not ready");
-  }
+void onButtonPressed(int pin, int state) {
+   if (state == HIGH) {
+     // active Low
+     Log.printf("button released: %d\n", pin); 
+     return; 
+   }
+   Log.printf("button pressed: %d\n", pin);
+   if (machinestate.state() == MachineState::WAITINGFORCARD) {
+      machinestate = ACTIVE;
+   } else {
+     Log.println("button pressed while not ready");
+   }
 }
 
 void setup() {
@@ -138,16 +148,26 @@ void setup() {
   Serial.println("\n\n\n");
   Serial.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 
+  node.set_mqtt_prefix("test");
+  node.set_master("master");
+
+  pinMode(15, OUTPUT);
+  digitalWrite(15, LOW);
+
   // i2C Setup
-  i2cBus.begin(I2C_SDA_PIN, I2C_SCL_PIN); // , 50000);
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, RFID_I2C_FREQ); // , 50000);
   
   machinestate.defineState(ACTIVE, "Active", LED::LED_ERROR, 5 * 1000, DEACTIVATING);
   machinestate.defineState(DEACTIVATING, "Deactivating", LED::LED_ERROR, 1 * 1000, MachineState::WAITINGFORCARD);
 
-  if (!mcp.begin_I2C(mcp_i2c_addr, &i2cBus)) {
+  if (!mcp.begin_I2C(mcp_i2c_addr, &Wire)) {
     Log.println("error TODO");
   }
-  
+
+  buttonRed = new MCPButtonDebounce(&mcp, BUTTONPIN_RED, 250);
+  buttonYellow = new MCPButtonDebounce(&mcp, BUTTONPIN_YELLOW, 250);
+  buttonGreen = new MCPButtonDebounce(&mcp, BUTTONPIN_GREEN, 250);
+
   red.set(LED::LED_OFF);
   yellow.set(LED::LED_OFF);
   green.set(LED::LED_OFF);
@@ -185,19 +205,23 @@ void setup() {
     machinestate = MachineState::WAITINGFORCARD;
   });
 
-  buttonRed.setCallback([](int state) {
-    onButtonPressed(BUTTONPIN_RED);
+
+  buttonRed->setCallback([](int state) {
+      onButtonPressed(BUTTONPIN_RED, state);
   });
 
-  buttonYellow.setCallback([](int state) {
-    onButtonPressed(BUTTONPIN_YELLOW);
+  buttonYellow->setCallback([](int state) {
+    onButtonPressed(BUTTONPIN_YELLOW, state);
   });
 
-  buttonGreen.setCallback([](int state) {
-    onButtonPressed(BUTTONPIN_GREEN);
+  buttonGreen->setCallback([](int state) {
+    onButtonPressed(BUTTONPIN_GREEN, state);
   });
 
+  node.addHandler(&ota);
   node.addHandler(&machinestate);
+
+  Log.addPrintStream(std::make_shared<MqttLogStream>(mqttlogStream));
 
   auto t = std::make_shared<TelnetSerialStream>(telnetSerialStream);
   Log.addPrintStream(t);

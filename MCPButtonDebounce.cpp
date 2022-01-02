@@ -21,6 +21,24 @@ MCPButtonDebounce::MCPButtonDebounce(Adafruit_MCP23XXX *mcp, int pin, unsigned l
 }
 
 void MCPButtonDebounce::update(){
+  //_lastDebounceTime = millis();
+  int btnState = _mcp->digitalRead(_pin);
+  // Serial.printf("%d %d\n", btnState, _lastStateBtn);
+  if (btnState == _lastStateBtn) {
+    _lastChangeTime = millis();
+    return;
+  };
+
+  // if (millis() - _lastChangeTime < _delay) return;
+
+  _lastStateBtn = btnState;
+  if (_callback) {
+    _callback(_lastStateBtn);
+  }
+}
+
+/*
+void MCPButtonDebounce::update(){
   _lastDebounceTime = millis();
   int btnState = _mcp->digitalRead(_pin);
   if (btnState == _lastStateBtn) {
@@ -34,6 +52,7 @@ void MCPButtonDebounce::update(){
   if (_callback) 
 	_callback(_lastStateBtn);
 }
+*/
 
 int MCPButtonDebounce::state(){
   return _lastStateBtn;
