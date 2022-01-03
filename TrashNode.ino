@@ -20,33 +20,43 @@
 #warning "Setting easy to guess/hardcoded OTA password."
 #endif
 
+// I2C 
 const uint8_t I2C_SDA_PIN = 13; // i2c SDA Pin, ext 2, pin 10
 const uint8_t I2C_SCL_PIN = 16; // i2c SCL Pin, ext 2, pin 7
-#define RFID_I2C_FREQ   (100000U)
+const uint32_t I2C_FREQ = 100000U; 
 
-const uint8_t mcp_i2c_addr = 0x20;
+const int I2C_POWER_PIN = 15;
 
-#define LEDPIN_RED 5
-#define LEDPIN_YELLOW 4
-#define LEDPIN_GREEN 2
+// MCP I/O-extender, with buttons
+// NodeStandard buttons 1..3 are on MCP GPA0..GPA2, see https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library
+const uint8_t MCP_I2C_ADDR = 0x20;
 
-// buttons 1..3 on MCP GPA0..GPA2, see https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library
-#define BUTTONPIN_RED 0 
-#define BUTTONPIN_YELLOW 1
-#define BUTTONPIN_GREEN 2
+const int BUTTONPIN_RED = 0;
+const int BUTTONPIN_YELLOW = 1;
+const int BUTTONPIN_GREEN = 2;
 
+// LED's are on UEXT on ESP32
+const int LEDPIN_RED  = 5;
+const int LEDPIN_YELLOW = 4;
+const int LEDPIN_GREEN = 2;
+
+// NTP (daylightOffset_sec is handled quite strange, read the source...)
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
+// The ACNode "machine"
 ACNode node = ACNode(MACHINE);
-OTA ota = OTA(OTA_PASSWD);
-
+OTA ota = OTA(OTA_PASSWD); // TODO: find out how this actually works
 MqttLogStream mqttlogStream = MqttLogStream();
 
 MachineState machinestate = MachineState();
 enum { ACTIVE = MachineState::START_PRIVATE_STATES, DEACTIVATING };
 
+TelnetSerialStream telnetSerialStream = TelnetSerialStream();
+WiFiClientSecure client;
+
+// MCP object with buttons wired to it, with callback
 Adafruit_MCP23X17 mcp;
 
 void onButtonPressed(int pin, int state);
@@ -55,18 +65,28 @@ Button buttonRed(&mcp, BUTTONPIN_RED, onButtonPressed);
 Button buttonYellow(&mcp, BUTTONPIN_YELLOW, onButtonPressed);
 Button buttonGreen(&mcp, BUTTONPIN_GREEN, onButtonPressed);
 
+// LEDS wired to UEXT
 LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
 LED green(LEDPIN_GREEN);
 
-TelnetSerialStream telnetSerialStream = TelnetSerialStream();
-WiFiClientSecure client;
+// The 'application state'
 
-DynamicJsonDocument doc(4096);
-unsigned long lastUpdatedChores = 0;
-time_t nextCollection = 0;
+unsigned long lastUpdatedChores = 0; // last refreshed chores from API, in ms
+time_t nextCollection = 0; // the very next 'collection', in Unix EPOCH seconds
+
+// the position in which we 'want' the trash container vs. the position it actually is
+int wantedPosition=-1;  // initially unknown 
+int actualPosition=-1; // iniitally unknown
+
+int previousWanted=-2;
+int previousActual=-2;
 
 void fetchChores() {
+
+  static DynamicJsonDocument doc(4096);
+
+  // fetch data from API, dissect JSON and find the timestamp of next collection 
 
   HTTPClient http;
   if (!http.begin(client, "https://makerspaceleiden.nl/crm/chores/api/v1/list/empty_trash_small" )) {
@@ -83,7 +103,7 @@ void fetchChores() {
 
   DeserializationError error = deserializeJson(doc, http.getString());
   if (error) {
-    Log.println("error parsing json");
+    Log.println("error parsing chores json");
     return;
   }
 
@@ -93,6 +113,7 @@ void fetchChores() {
     Log.println("doc[\"chores\"] is not an array");
     return;
   }
+  
   for (JsonVariant chore : chores) {
     JsonArray events = chore["events"].as<JsonArray>();
     if (!events) {
@@ -114,8 +135,10 @@ void fetchChores() {
 }
 
 time_t epoch() {
+  // get the current EPOCH time
   time_t now = 0;
   struct tm timeinfo;
+  // TODO: examples on the internet include this call to getLocalTime(), but why it that needed? (result in timeinfo is not really used)
   if (!getLocalTime(&timeinfo)) {
     Log.println("failed to get time");
     return now;
@@ -125,12 +148,6 @@ time_t epoch() {
   return now;
 }
 
-int wantedPosition=-1; 
-int actualPosition=-1;
-
-int previousWanted=-2;
-int previousActual=-2;
-
 void onButtonPressed(int pin, int state) {
    if (state == HIGH) {
      // active Low
@@ -139,7 +156,7 @@ void onButtonPressed(int pin, int state) {
    }
    Log.printf("button pressed: %d\n", pin);
    if (machinestate.state() == MachineState::WAITINGFORCARD) {
-      // machinestate = ACTIVE;
+      // machinestate = ACTIVE; // TODO: elaborate on machinestates
       actualPosition = pin;
    } else {
      // Log.println("button pressed while not ready");
@@ -151,26 +168,29 @@ void setup() {
   Serial.println("\n\n\n");
   Serial.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 
+  // TODO: find out more on this MQTT-stuff
   node.set_mqtt_prefix("test");
   node.set_master("master");
 
-  pinMode(15, OUTPUT);
-  digitalWrite(15, LOW);
-
   // i2C Setup
-  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, RFID_I2C_FREQ); // , 50000);
-  
+  pinMode(I2C_POWER_PIN, OUTPUT);
+  digitalWrite(I2C_POWER_PIN, LOW);
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQ); // , 50000);
+
+  // define machine state
   machinestate.defineState(ACTIVE, "Active", LED::LED_ERROR, 5 * 1000, DEACTIVATING);
   machinestate.defineState(DEACTIVATING, "Deactivating", LED::LED_ERROR, 1 * 1000, MachineState::WAITINGFORCARD);
 
-  if (!mcp.begin_I2C(mcp_i2c_addr, &Wire)) {
-    Log.println("error TODO");
+  if (!mcp.begin_I2C(MCP_I2C_ADDR, &Wire)) {
+    Log.println("cannot initialize MCP I/O-extender");
   }
 
-  mcp.pinMode(0, INPUT_PULLUP);
-  mcp.pinMode(1, INPUT_PULLUP);
-  mcp.pinMode(2, INPUT_PULLUP);
+  // TODO: this could be moved to the Button class?
+  mcp.pinMode(BUTTONPIN_RED, INPUT_PULLUP);
+  mcp.pinMode(BUTTONPIN_RED, INPUT_PULLUP);
+  mcp.pinMode(BUTTONPIN_RED, INPUT_PULLUP);
 
+  // have a defined initial state for the LEDS, that are updated later in showState()
   red.set(LED::LED_OFF);
   yellow.set(LED::LED_OFF);
   green.set(LED::LED_OFF);
@@ -228,6 +248,8 @@ void showState() {
   Log.printf("actual %d wanted %d\n", actualPosition, wantedPosition);
   previousWanted = wantedPosition;
   previousActual = actualPosition;
+
+  // the code below is intentionally quite verbatim, let's optimize later
   
   if (actualPosition < 0 && wantedPosition < 0) {
     // everything is unknown  
