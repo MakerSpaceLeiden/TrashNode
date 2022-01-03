@@ -11,7 +11,7 @@
 #include <Adafruit_MCP23X17.h>
 
 #include "acmerootcert.h"
-#include "MCPButtonDebounce.h"
+// #include "MCPButtonDebounce.h"
 
 #define MACHINE "trash"
 
@@ -49,9 +49,6 @@ enum { ACTIVE = MachineState::START_PRIVATE_STATES, DEACTIVATING };
 
 Adafruit_MCP23X17 mcp;
 
-MCPButtonDebounce *buttonRed; 
-MCPButtonDebounce *buttonYellow;
-MCPButtonDebounce *buttonGreen;
 
 LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
@@ -164,9 +161,9 @@ void setup() {
     Log.println("error TODO");
   }
 
-  buttonRed = new MCPButtonDebounce(&mcp, BUTTONPIN_RED, 250);
-  buttonYellow = new MCPButtonDebounce(&mcp, BUTTONPIN_YELLOW, 250);
-  buttonGreen = new MCPButtonDebounce(&mcp, BUTTONPIN_GREEN, 250);
+  mcp.pinMode(0, INPUT_PULLUP);
+  mcp.pinMode(1, INPUT_PULLUP);
+  mcp.pinMode(2, INPUT_PULLUP);
 
   red.set(LED::LED_OFF);
   yellow.set(LED::LED_OFF);
@@ -205,7 +202,7 @@ void setup() {
     machinestate = MachineState::WAITINGFORCARD;
   });
 
-
+/*
   buttonRed->setCallback([](int state) {
       onButtonPressed(BUTTONPIN_RED, state);
   });
@@ -217,7 +214,7 @@ void setup() {
   buttonGreen->setCallback([](int state) {
     onButtonPressed(BUTTONPIN_GREEN, state);
   });
-
+*/
   node.addHandler(&ota);
   node.addHandler(&machinestate);
 
@@ -235,7 +232,7 @@ void setup() {
 void showState() {
   if (previousWanted == wantedPosition && previousActual == actualPosition) return; // no change
   
-  Log.printf("actual %d wanted %d\n", actualPosition, wantedPosition);\
+  // Log.printf("actual %d wanted %d\n", actualPosition, wantedPosition);\
 
   if (actualPosition <= 0 && wantedPosition <= 0) {
     // everything is unknown  
@@ -297,9 +294,23 @@ void showState() {
   previousActual = actualPosition;
 }
 
+int pa = HIGH;
+int pb = HIGH;
+int pc = HIGH;
+
 void loop() {
   node.loop();
   long now = millis();
+  int a = mcp.digitalRead(0);
+  if (a != pa) onButtonPressed(0, a);
+  pa = a;
+  int b = mcp.digitalRead(1);
+  if (b != pb) onButtonPressed(1, b);
+  pb = b;
+  int c = mcp.digitalRead(2);
+  if (c != pc) onButtonPressed(2, c);
+  pc = c;
+  // Serial.printf("%d %d %d\n", a, b, c);
   time_t epochNow = epoch();
   switch (machinestate.state()) {
     case MachineState::WAITINGFORCARD:
