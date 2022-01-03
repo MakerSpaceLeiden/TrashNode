@@ -11,7 +11,7 @@
 #include <Adafruit_MCP23X17.h>
 
 #include "acmerootcert.h"
-// #include "MCPButtonDebounce.h"
+#include "Button.h"
 
 #define MACHINE "trash"
 
@@ -49,6 +49,11 @@ enum { ACTIVE = MachineState::START_PRIVATE_STATES, DEACTIVATING };
 
 Adafruit_MCP23X17 mcp;
 
+void onButtonPressed(int pin, int state);
+
+Button buttonRed(&mcp, BUTTONPIN_RED, onButtonPressed);
+Button buttonYellow(&mcp, BUTTONPIN_YELLOW, onButtonPressed);
+Button buttonGreen(&mcp, BUTTONPIN_GREEN, onButtonPressed);
 
 LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
@@ -129,14 +134,15 @@ int previousActual=-2;
 void onButtonPressed(int pin, int state) {
    if (state == HIGH) {
      // active Low
-     Log.printf("button released: %d\n", pin); 
+     // Log.printf("button released: %d\n", pin); 
      return; 
    }
    Log.printf("button pressed: %d\n", pin);
    if (machinestate.state() == MachineState::WAITINGFORCARD) {
-      machinestate = ACTIVE;
+      // machinestate = ACTIVE;
+      actualPosition = pin;
    } else {
-     Log.println("button pressed while not ready");
+     // Log.println("button pressed while not ready");
    }
 }
 
@@ -202,19 +208,6 @@ void setup() {
     machinestate = MachineState::WAITINGFORCARD;
   });
 
-/*
-  buttonRed->setCallback([](int state) {
-      onButtonPressed(BUTTONPIN_RED, state);
-  });
-
-  buttonYellow->setCallback([](int state) {
-    onButtonPressed(BUTTONPIN_YELLOW, state);
-  });
-
-  buttonGreen->setCallback([](int state) {
-    onButtonPressed(BUTTONPIN_GREEN, state);
-  });
-*/
   node.addHandler(&ota);
   node.addHandler(&machinestate);
 
@@ -232,16 +225,18 @@ void setup() {
 void showState() {
   if (previousWanted == wantedPosition && previousActual == actualPosition) return; // no change
   
-  // Log.printf("actual %d wanted %d\n", actualPosition, wantedPosition);\
-
-  if (actualPosition <= 0 && wantedPosition <= 0) {
+  Log.printf("actual %d wanted %d\n", actualPosition, wantedPosition);
+  previousWanted = wantedPosition;
+  previousActual = actualPosition;
+  
+  if (actualPosition < 0 && wantedPosition < 0) {
     // everything is unknown  
     red.set(LED::LED_FLASH);
     yellow.set(LED::LED_FLASH); 
     green.set(LED::LED_FLASH);
   }
   
-  if (actualPosition > 0 && wantedPosition <=0) {
+  if (actualPosition >= 0 && wantedPosition <0) {
     // actualPosition known, wanted not
     if (actualPosition == BUTTONPIN_RED) {
       red.set(LED::LED_ON); // it in outside
@@ -259,7 +254,7 @@ void showState() {
     return;
   }
 
-  if (actualPosition <= 0 && wantedPosition > 0) {
+  if (actualPosition < 0 && wantedPosition >= 0) {
     // actual Position not known, wanted known
     if (wantedPosition == BUTTONPIN_RED) {
       red.set(LED::LED_FLASH); // it should be outside     
@@ -290,27 +285,16 @@ void showState() {
       green.set(LED::LED_FLASH); // it should be inside but it is not              
     }
   }  
-  previousWanted = wantedPosition;
-  previousActual = actualPosition;
 }
-
-int pa = HIGH;
-int pb = HIGH;
-int pc = HIGH;
 
 void loop() {
   node.loop();
   long now = millis();
-  int a = mcp.digitalRead(0);
-  if (a != pa) onButtonPressed(0, a);
-  pa = a;
-  int b = mcp.digitalRead(1);
-  if (b != pb) onButtonPressed(1, b);
-  pb = b;
-  int c = mcp.digitalRead(2);
-  if (c != pc) onButtonPressed(2, c);
-  pc = c;
-  // Serial.printf("%d %d %d\n", a, b, c);
+
+  buttonRed.check();
+  buttonYellow.check();
+  buttonGreen.check();
+  
   time_t epochNow = epoch();
   switch (machinestate.state()) {
     case MachineState::WAITINGFORCARD:
