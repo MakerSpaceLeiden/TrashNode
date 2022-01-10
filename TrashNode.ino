@@ -12,6 +12,7 @@
 
 #include "acmerootcert.h"
 #include "Button.h"
+#include "MyRFID.h"   // (local) NFC version
 
 #define MACHINE "trash"
 
@@ -69,6 +70,13 @@ Button buttonGreen(&mcp, BUTTONPIN_GREEN, onButtonPressed);
 LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
 LED green(LEDPIN_GREEN);
+
+#define USE_CACHE_FOR_TAGS true
+#define USE_NFC_RFID_CARD true
+
+// RFID.cpp uses https://github.com/nurun/arduino_NFC/blob/master/PN532_I2C.cpp  for NFC cards
+// look like the i2c address is hard-coded there (luckely: on the actual addres 0x24)
+MyRFID reader = MyRFID(USE_CACHE_FOR_TAGS, USE_NFC_RFID_CARD); // use tags are stored in cache, to allow access in case the MQTT server is down; also use NFC RFID card
 
 // The 'application state'
 
@@ -228,8 +236,15 @@ void setup() {
     machinestate = MachineState::WAITINGFORCARD;
   });
 
+  reader.onSwipe([](const char * tag) -> ACBase::cmd_result_t {
+    Log.printf("Onswipe tag: %s\n", tag);
+    return ACBase::CMD_CLAIMED;
+  });
+  reader.set_debug(false);
+
   node.addHandler(&ota);
   node.addHandler(&machinestate);
+  node.addHandler(&reader);
 
   Log.addPrintStream(std::make_shared<MqttLogStream>(mqttlogStream));
 
