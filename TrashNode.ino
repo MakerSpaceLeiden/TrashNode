@@ -9,10 +9,10 @@
 #include <time.h>
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
+#include <RFID.h> // NFC version
 
 #include "acmerootcert.h"
 #include "Button.h"
-#include "MyRFID.h"   // (local) NFC version
 
 #define MACHINE "trash"
 
@@ -32,9 +32,12 @@ const int I2C_POWER_PIN = 15;
 // NodeStandard buttons 1..3 are on MCP GPA0..GPA2, see https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library
 const uint8_t MCP_I2C_ADDR = 0x20;
 
-const int BUTTONPIN_RED = 0;
-const int BUTTONPIN_YELLOW = 1;
-const int BUTTONPIN_GREEN = 2;
+const int BUTTONPIN_RED = 0; // GPA0
+const int BUTTONPIN_YELLOW = 1; // GPA1
+const int BUTTONPIN_GREEN = 2; // GPA2
+
+const int FETPIN_1 = 11; // GPB3
+const int FETPIN_2 = 12; // GPB4
 
 // LED's are on UEXT on ESP32
 const int LEDPIN_RED  = 5;
@@ -71,12 +74,13 @@ LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
 LED green(LEDPIN_GREEN);
 
+
 #define USE_CACHE_FOR_TAGS true
 #define USE_NFC_RFID_CARD true
 
 // RFID.cpp uses https://github.com/nurun/arduino_NFC/blob/master/PN532_I2C.cpp  for NFC cards
 // look like the i2c address is hard-coded there (luckely: on the actual addres 0x24)
-MyRFID reader = MyRFID(USE_CACHE_FOR_TAGS, USE_NFC_RFID_CARD); // use tags are stored in cache, to allow access in case the MQTT server is down; also use NFC RFID card
+RFID reader = RFID(USE_CACHE_FOR_TAGS, USE_NFC_RFID_CARD); // use tags are stored in cache, to allow access in case the MQTT server is down; also use NFC RFID card
 
 // The 'application state'
 
@@ -89,6 +93,19 @@ int actualPosition=-1; // iniitally unknown
 
 int previousWanted=-2;
 int previousActual=-2;
+
+void resetNFCReader() {
+  if (USE_NFC_RFID_CARD) {
+    pinMode(RFID_SCL_PIN, OUTPUT);
+    digitalWrite(RFID_SCL_PIN, 0);
+    pinMode(RFID_SDA_PIN, OUTPUT);
+    digitalWrite(RFID_SDA_PIN, 0);
+    digitalWrite(I2C_POWER_PIN, 1);
+    delay(500);
+    digitalWrite(I2C_POWER_PIN, 0);
+    reader.begin();
+  }
+}
 
 void fetchChores() {
 
@@ -195,13 +212,19 @@ void setup() {
 
   // TODO: this could be moved to the Button class?
   mcp.pinMode(BUTTONPIN_RED, INPUT_PULLUP);
-  mcp.pinMode(BUTTONPIN_RED, INPUT_PULLUP);
-  mcp.pinMode(BUTTONPIN_RED, INPUT_PULLUP);
+  mcp.pinMode(BUTTONPIN_YELLOW, INPUT_PULLUP);
+  mcp.pinMode(BUTTONPIN_GREEN, INPUT_PULLUP);
 
   // have a defined initial state for the LEDS, that are updated later in showState()
   red.set(LED::LED_OFF);
   yellow.set(LED::LED_OFF);
   green.set(LED::LED_OFF);
+
+  // 
+  mcp.pinMode(FETPIN_1, OUTPUT);
+  mcp.pinMode(FETPIN_2, OUTPUT);
+  mcp.digitalWrite(FETPIN_1, HIGH);
+  mcp.digitalWrite(FETPIN_2, HIGH);
 
   client.setCACert(rootCACertificate);
 
@@ -254,6 +277,8 @@ void setup() {
 
   node.begin(BOARD_OLIMEX); // OLIMEX
 
+  resetNFCReader();
+  
   Log.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 }
 
