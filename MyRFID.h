@@ -11,32 +11,6 @@
 #include <PN532.h>
 #include <Wire.h>
 
-// SPI based RFID reader
-// if POESP board (board Aart) is used
-#ifndef RFID_MOSI_PIN
-#define RFID_MOSI_PIN   (13)
-#endif
-
-#ifndef RFID_MISO_PIN
-#define RFID_MISO_PIN   (12)
-#endif
-
-#ifndef RFID_CLK_PIN
-#define RFID_CLK_PIN    (14)
-#endif
-
-#ifndef RFID_SELECT_PIN
-#define RFID_SELECT_PIN (15)
-#endif
-
-#ifndef RFID_RESET_PIN
-#define RFID_RESET_PIN  (32)
-#endif
-
-#ifndef RFID_IRQ_PIN
-#define RFID_IRQ_PIN    (33) // Set to -1 to switch to polling mode; 33 to use IRQs
-#endif
-
 // I2C based NFC reader
 // if ESP32-PoE is used
 #ifndef RFID_SDA_PIN
@@ -54,13 +28,8 @@
 class MyRFID : public ACBase {
   public:
     const char * name() { return "RFID"; }
-    
-    MyRFID(const byte sspin = RFID_SELECT_PIN, const byte rstpin = RFID_RESET_PIN, const byte irqpin = RFID_IRQ_PIN, 
-	       const byte spiclk = RFID_CLK_PIN, const byte spimiso = RFID_MISO_PIN, const byte spimosi = RFID_MOSI_PIN);
-
-    MyRFID(TwoWire *i2cBus, const byte i2caddr, const byte rstpin = RFID_RESET_PIN, const byte irqpin = RFID_IRQ_PIN);
-
-    MyRFID(bool useCache = true, bool useNFCRFIDCard = true);
+   
+    MyRFID(bool useCache = true);
 
     void begin();
 
@@ -76,14 +45,8 @@ class MyRFID : public ACBase {
 	{ _swipe_cb = fn; return *this; };
   
   private:
-    bool _irqMode = false;
-    bool nfcCardUsed = false;
     bool foundPN53xBoard = false;
     bool useTagsStoredInCache = false;
-
-    MFRC522_SPI * _spiDevice;
-    MFRC522_I2C * _i2cDevice;
-    MFRC522 * _mfrc522;
 
     PN532_I2C * _i2cNFCDevice;
     PN532 * _nfc532;

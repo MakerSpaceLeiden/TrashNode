@@ -76,11 +76,10 @@ LED green(LEDPIN_GREEN);
 
 
 #define USE_CACHE_FOR_TAGS true
-#define USE_NFC_RFID_CARD true
 
 // RFID.cpp uses https://github.com/nurun/arduino_NFC/blob/master/PN532_I2C.cpp  for NFC cards
 // look like the i2c address is hard-coded there (luckely: on the actual addres 0x24)
-MyRFID reader = MyRFID(USE_CACHE_FOR_TAGS, USE_NFC_RFID_CARD); // use tags are stored in cache, to allow access in case the MQTT server is down; also use NFC RFID card
+MyRFID reader = MyRFID(USE_CACHE_FOR_TAGS); // use tags are stored in cache, to allow access in case the MQTT server is down; also use NFC RFID card
 
 // The 'application state'
 
@@ -95,16 +94,14 @@ int previousWanted=-2;
 int previousActual=-2;
 
 void resetNFCReader() {
-  if (USE_NFC_RFID_CARD) {
-    pinMode(RFID_SCL_PIN, OUTPUT);
-    digitalWrite(RFID_SCL_PIN, 0);
-    pinMode(RFID_SDA_PIN, OUTPUT);
-    digitalWrite(RFID_SDA_PIN, 0);
-    digitalWrite(I2C_POWER_PIN, 1);
-    delay(500);
-    digitalWrite(I2C_POWER_PIN, 0);
-    reader.begin();
-  }
+  pinMode(RFID_SCL_PIN, OUTPUT);
+  digitalWrite(RFID_SCL_PIN, 0);
+  pinMode(RFID_SDA_PIN, OUTPUT);
+  digitalWrite(RFID_SDA_PIN, 0);
+  digitalWrite(I2C_POWER_PIN, 1);
+  delay(500);
+  digitalWrite(I2C_POWER_PIN, 0);
+  reader.begin();
 }
 
 void fetchChores() {
