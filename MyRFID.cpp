@@ -15,10 +15,9 @@ MyRFID::MyRFID(TwoWire *i2cBus, const byte i2caddr, const byte rstpin, const byt
 }
 */
 
-MyRFID::MyRFID(bool useCache) {
+MyRFID::MyRFID(TwoWire *i2cBus, bool useCache) {
   useTagsStoredInCache = useCache;
-  Wire.begin(RFID_SDA_PIN, RFID_SCL_PIN, RFID_I2C_FREQ);
-  _i2cNFCDevice = new PN532_I2C(Wire);
+  _i2cNFCDevice = new PN532_I2C(*i2cBus);
   _nfc532 = new PN532(*_i2cNFCDevice);
 }
 

@@ -82,7 +82,7 @@ LED green(LEDPIN_GREEN);
 
 // RFID.cpp uses https://github.com/nurun/arduino_NFC/blob/master/PN532_I2C.cpp  for NFC cards
 // look like the i2c address is hard-coded there (luckely: on the actual addres 0x24)
-MyRFID reader = MyRFID(USE_CACHE_FOR_TAGS); // use tags are stored in cache, to allow access in case the MQTT server is down; also use NFC RFID card
+MyRFID reader = MyRFID(&Wire, USE_CACHE_FOR_TAGS); // use tags are stored in cache, to allow access in case the MQTT server is down; also use NFC RFID card
 unsigned long lastCheckNFCReaderTime = 0;
 
 // The 'application state'
@@ -108,10 +108,10 @@ void resetNFCReader(boolean force) {
   }
   lastCheckNFCReaderTime = now;
   if (force) { 
-    pinMode(RFID_SCL_PIN, OUTPUT);
-    digitalWrite(RFID_SCL_PIN, 0);
-    pinMode(RFID_SDA_PIN, OUTPUT);
-    digitalWrite(RFID_SDA_PIN, 0);
+    pinMode(I2C_SCL_PIN, OUTPUT);
+    digitalWrite(I2C_SCL_PIN, 0);
+    pinMode(I2C_SDA_PIN, OUTPUT);
+    digitalWrite(I2C_SDA_PIN, 0);
     digitalWrite(I2C_POWER_PIN, 1);
     delay(500);
     digitalWrite(I2C_POWER_PIN, 0);
@@ -214,7 +214,7 @@ void setup() {
   // i2C Setup
   pinMode(I2C_POWER_PIN, OUTPUT);
   digitalWrite(I2C_POWER_PIN, LOW);
-  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQ); // , 50000);
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQ);
 
   // define machine state
   machinestate.defineState(ACTIVE, "Active", LED::LED_ERROR, 5 * 1000, DEACTIVATING);

@@ -12,24 +12,12 @@
 #include <Wire.h>
 
 // I2C based NFC reader
-// if ESP32-PoE is used
-#ifndef RFID_SDA_PIN
-#define RFID_SDA_PIN    (13)
-#endif
-
-#ifndef RFID_SCL_PIN
-#define RFID_SCL_PIN    (16)
-#endif
-
-#ifndef RFID_I2C_FREQ
-#define RFID_I2C_FREQ   (100000U)
-#endif
 
 class MyRFID : public ACBase {
   public:
     const char * name() { return "RFID"; }
    
-    MyRFID(bool useCache = true);
+    MyRFID(TwoWire *i2cBus, bool useCache = true);
 
     void begin();
 
@@ -41,8 +29,7 @@ class MyRFID : public ACBase {
 
     typedef std::function<ACBase::cmd_result_t(const char *)> THandlerFunction_SwipeCB;
 
-    MyRFID& onSwipe(THandlerFunction_SwipeCB fn) 
-	{ _swipe_cb = fn; return *this; };
+    MyRFID& onSwipe(THandlerFunction_SwipeCB fn) { _swipe_cb = fn; return *this; };
   
   private:
     bool foundPN53xBoard = false;
