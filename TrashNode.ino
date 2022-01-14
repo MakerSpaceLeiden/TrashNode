@@ -39,6 +39,10 @@ const int BUTTONPIN_GREEN = 2; // GPA2
 const int FETPIN_1 = 11; // GPB3
 const int FETPIN_2 = 12; // GPB4
 
+// I2C RFID Reader
+const int CHECK_NFC_READER_AVAILABLE_TIME_WINDOW =10000; // in ms  
+const bool USE_CACHE_FOR_TAGS = true ;// TODO: what exactly does it do?
+
 // LED's are on UEXT on ESP32
 const int LEDPIN_RED  = 5;
 const int LEDPIN_YELLOW = 4;
@@ -74,14 +78,16 @@ LED red(LEDPIN_RED);
 LED yellow(LEDPIN_YELLOW);
 LED green(LEDPIN_GREEN);
 
-
-#define USE_CACHE_FOR_TAGS true
+// RFID reader
 
 // RFID.cpp uses https://github.com/nurun/arduino_NFC/blob/master/PN532_I2C.cpp  for NFC cards
 // look like the i2c address is hard-coded there (luckely: on the actual addres 0x24)
 MyRFID reader = MyRFID(USE_CACHE_FOR_TAGS); // use tags are stored in cache, to allow access in case the MQTT server is down; also use NFC RFID card
+unsigned long lastCheckNFCReaderTime = 0;
 
 // The 'application state'
+
+unsigned long now;
 
 unsigned long lastUpdatedChores = 0; // last refreshed chores from API, in ms
 time_t nextCollection = 0; // the very next 'collection', in Unix EPOCH seconds
@@ -93,15 +99,24 @@ int actualPosition=-1; // iniitally unknown
 int previousWanted=-2;
 int previousActual=-2;
 
-void resetNFCReader() {
-  pinMode(RFID_SCL_PIN, OUTPUT);
-  digitalWrite(RFID_SCL_PIN, 0);
-  pinMode(RFID_SDA_PIN, OUTPUT);
-  digitalWrite(RFID_SDA_PIN, 0);
-  digitalWrite(I2C_POWER_PIN, 1);
-  delay(500);
-  digitalWrite(I2C_POWER_PIN, 0);
-  reader.begin();
+void resetNFCReader(boolean force) {
+  if (!force) {
+    force = !reader.CheckPN53xBoardAvailable();
+    if (force) {
+      Log.println("error in RFID read, resetting");
+    }
+  }
+  lastCheckNFCReaderTime = now;
+  if (force) { 
+    pinMode(RFID_SCL_PIN, OUTPUT);
+    digitalWrite(RFID_SCL_PIN, 0);
+    pinMode(RFID_SDA_PIN, OUTPUT);
+    digitalWrite(RFID_SDA_PIN, 0);
+    digitalWrite(I2C_POWER_PIN, 1);
+    delay(500);
+    digitalWrite(I2C_POWER_PIN, 0);
+    reader.begin();
+  }
 }
 
 void fetchChores() {
@@ -190,6 +205,8 @@ void setup() {
   Serial.println("\n\n\n");
   Serial.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 
+  now = millis();
+
   // TODO: find out more on this MQTT-stuff
   node.set_mqtt_prefix("test");
   node.set_master("master");
@@ -258,6 +275,7 @@ void setup() {
 
   reader.onSwipe([](const char * tag) -> ACBase::cmd_result_t {
     Log.printf("Onswipe tag: %s\n", tag);
+    resetNFCReader(false);
     return ACBase::CMD_CLAIMED;
   });
   reader.set_debug(false);
@@ -274,7 +292,7 @@ void setup() {
 
   node.begin(BOARD_OLIMEX); // OLIMEX
 
-  resetNFCReader();
+  resetNFCReader(true);
   
   Log.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 }
@@ -348,11 +366,15 @@ void showState() {
 
 void loop() {
   node.loop();
-  long now = millis();
+  now = millis();
 
   buttonRed.check();
   buttonYellow.check();
   buttonGreen.check();
+
+  if ((now - lastCheckNFCReaderTime) > CHECK_NFC_READER_AVAILABLE_TIME_WINDOW) {
+    resetNFCReader(false);
+  }
   
   time_t epochNow = epoch();
   switch (machinestate.state()) {
