@@ -12,6 +12,7 @@
 #include "acmerootcert.h"
 #include "Button.h"
 #include "MyRFID.h" // (local) NFC version
+#include "MyLED.h"
 
 #define MACHINE "trash"
 
@@ -74,10 +75,12 @@ Button buttonYellow(&mcp, BUTTONPIN_YELLOW, onButtonPressed);
 Button buttonGreen(&mcp, BUTTONPIN_GREEN, onButtonPressed);
 
 // LEDS wired to UEXT
-LED orange(LEDPIN_ORANGE);
-LED red(LEDPIN_RED);
-LED yellow(LEDPIN_YELLOW);
-LED green(LEDPIN_GREEN);
+MyLED orange(LEDPIN_ORANGE);
+MyLED red(LEDPIN_RED);
+MyLED yellow(LEDPIN_YELLOW);
+MyLED green(LEDPIN_GREEN);
+//MyLED fet1(FETPIN_1, false, &mcp);
+//MyLED fet2(FETPIN_2, false, &mcp);
 
 // RFID reader
 
@@ -218,23 +221,26 @@ void setup() {
     Log.println("cannot initialize MCP I/O-extender");
   }
 
-  // TODO: this could be moved to the Button class?
-  mcp.pinMode(BUTTONPIN_RED, INPUT_PULLUP);
-  mcp.pinMode(BUTTONPIN_YELLOW, INPUT_PULLUP);
-  mcp.pinMode(BUTTONPIN_GREEN, INPUT_PULLUP);
+  // begin buttons, now that i2c and mcp are started
+  buttonRed.begin();
+  buttonYellow.begin();
+  buttonGreen.begin();
 
-  // 
-  orange.set(LED::LED_OFF);
-  red.set(LED::LED_OFF);
-  yellow.set(LED::LED_OFF);
-  green.set(LED::LED_OFF);
+  // start LEDS
+  orange.begin();
+  red.begin();
+  yellow.begin();
+  green.begin();
+  //fet1.begin();
+  //fet2.begin();
   
-  // 
-  mcp.pinMode(FETPIN_1, OUTPUT);
-  mcp.pinMode(FETPIN_2, OUTPUT);
-  mcp.digitalWrite(FETPIN_1, HIGH);
-  mcp.digitalWrite(FETPIN_2, HIGH);
-
+  orange.set(MyLED::LED_OFF);
+  red.set(MyLED::LED_OFF);
+  yellow.set(MyLED::LED_OFF);
+  green.set(MyLED::LED_OFF);
+  //fet1.set(MyLED::LED_FLASH);
+  //fet2.set(MyLED::LED_OFF);
+  
   client.setCACert(rootCACertificate);
 
   machinestate.setOnChangeCallback(MachineState::ALL_STATES, [](MachineState::machinestate_t last, MachineState::machinestate_t current) -> void {
@@ -287,39 +293,41 @@ void setup() {
 
 void showState() {
   if (!dirty) return;
+
+  //fet2.set(MyLED::LED_OFF);
   
   if (machinestate.state() == DEACTIVATING) {
-    orange.set(LED::LED_FLASH);
+    orange.set(MyLED::LED_FLASH);
   } else if (machinestate.state() == ACTIVE) {
-    orange.set(LED::LED_ON);
+    orange.set(MyLED::LED_ON);
   } else {
-    orange.set(LED::LED_OFF);
+    orange.set(MyLED::LED_OFF);
   }
     
   // the code below is intentionally quite verbatim, let's optimize later
     
   if ((actualPosition < 0 && wantedPosition < 0) || machinestate.state() < MachineState::WAITINGFORCARD) {
     // everything is unknown or not in operating state
-    red.set(LED::LED_FLASH);
-    yellow.set(LED::LED_FLASH); 
-    green.set(LED::LED_FLASH);
+    red.set(MyLED::LED_FLASH);
+    yellow.set(MyLED::LED_FLASH); 
+    green.set(MyLED::LED_FLASH);
     return;
   }
   
   if (actualPosition >= 0 && wantedPosition <0) {
     // actualPosition known, wanted not
     if (actualPosition == BUTTONPIN_RED) {
-      red.set(LED::LED_ON); // it in outside
-      yellow.set(LED::LED_FLASH);
-      green.set(LED::LED_FLASH);
+      red.set(MyLED::LED_ON); // it in outside
+      yellow.set(MyLED::LED_FLASH);
+      green.set(MyLED::LED_FLASH);
     } else if (actualPosition == BUTTONPIN_YELLOW) {
-      red.set(LED::LED_FLASH);
-      yellow.set(LED::LED_ON); // it is lost
-      green.set(LED::LED_FLASH);
+      red.set(MyLED::LED_FLASH);
+      yellow.set(MyLED::LED_ON); // it is lost
+      green.set(MyLED::LED_FLASH);
     } else if (actualPosition == BUTTONPIN_GREEN) {
-      red.set(LED::LED_FLASH);
-      yellow.set(LED::LED_FLASH);
-      green.set(LED::LED_ON); // it is inside
+      red.set(MyLED::LED_FLASH);
+      yellow.set(MyLED::LED_FLASH);
+      green.set(MyLED::LED_ON); // it is inside
     }
     return;
   }
@@ -327,36 +335,40 @@ void showState() {
   if (actualPosition < 0 && wantedPosition >= 0) {
     // actual Position not known, wanted known
     if (wantedPosition == BUTTONPIN_RED) {
-      red.set(LED::LED_FLASH); // it should be outside     
-      yellow.set(LED::LED_OFF);
-      green.set(LED::LED_OFF);
+      red.set(MyLED::LED_FLASH); // it should be outside     
+      yellow.set(MyLED::LED_OFF);
+      green.set(MyLED::LED_OFF);
+      //fet2.set(MyLED::LED_ON);
     } else {
-      red.set(LED::LED_OFF);
-      yellow.set(LED::LED_OFF);
-      green.set(LED::LED_FLASH); // it should be inside
+      red.set(MyLED::LED_OFF);
+      yellow.set(MyLED::LED_OFF);
+      green.set(MyLED::LED_FLASH); // it should be inside
+      //fet2.set(MyLED::LED_ON);
     }
     return;
   }
 
   // happy
   if (actualPosition == BUTTONPIN_RED) {
-    red.set(LED::LED_ON); // it in outside
-    yellow.set(LED::LED_OFF);
-    green.set(LED::LED_OFF);
+    red.set(MyLED::LED_ON); // it in outside
+    yellow.set(MyLED::LED_OFF);
+    green.set(MyLED::LED_OFF);
   } else if (actualPosition == BUTTONPIN_YELLOW) {
-    red.set(LED::LED_OFF);
-    yellow.set(LED::LED_ON); // it is lost
-    green.set(LED::LED_OFF);
+    red.set(MyLED::LED_OFF);
+    yellow.set(MyLED::LED_ON); // it is lost
+    green.set(MyLED::LED_OFF);
   } else if (actualPosition == BUTTONPIN_GREEN) {
-    red.set(LED::LED_OFF);
-    yellow.set(LED::LED_OFF);
-    green.set(LED::LED_ON); // it is inside
+    red.set(MyLED::LED_OFF);
+    yellow.set(MyLED::LED_OFF);
+    green.set(MyLED::LED_ON); // it is inside
   }
   if (actualPosition != wantedPosition) {
     if (wantedPosition == BUTTONPIN_RED) {
-      red.set(LED::LED_FLASH); // it should be outside but it is not      
+      red.set(MyLED::LED_FLASH); // it should be outside but it is not
+      //fet2.set(MyLED::LED_ON);
     } else {
-      green.set(LED::LED_FLASH); // it should be inside but it is not              
+      green.set(MyLED::LED_FLASH); // it should be inside but it is not              
+      //fet2.set(MyLED::LED_ON);
     }
   }  
 }

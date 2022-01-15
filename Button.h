@@ -9,6 +9,7 @@ class Button {
     typedef std::function<void(int,int)> btn_callback_t;  
     Button(Adafruit_MCP23XXX *mcp, int pin, btn_callback_t callback);
     void check();
+    void begin();
     
   private:
     Adafruit_MCP23XXX *_mcp;

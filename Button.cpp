@@ -12,3 +12,7 @@ void Button::check() {
   if (r != _state) _callback(_pin, r);
   _state = r;
 }
+
+void Button::begin() {
+  _mcp -> pinMode(_pin, INPUT_PULLUP);
+}
