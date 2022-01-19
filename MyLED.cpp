@@ -9,7 +9,7 @@ MyLED::MyLED(const byte pin, const bool inverted, Adafruit_MCP23XXX *mcp) : _pin
 
 void MyLED::begin() {
   if (_pin != -1) {
-     if (_mcp != NULL) {
+     if (_mcp != nullptr) {
        _mcp->pinMode(_pin, OUTPUT);
      } else {
        pinMode(_pin, OUTPUT);        
@@ -17,7 +17,7 @@ void MyLED::begin() {
      _ticker = Ticker();
   }
   _lastState = NEVERSET;
-  set(LED_FAST);
+  set(LED_OFF);
 }
 
 void MyLED::_on() { _set(true); }

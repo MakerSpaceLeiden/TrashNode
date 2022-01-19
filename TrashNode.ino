@@ -79,8 +79,8 @@ MyLED orange(LEDPIN_ORANGE);
 MyLED red(LEDPIN_RED);
 MyLED yellow(LEDPIN_YELLOW);
 MyLED green(LEDPIN_GREEN);
-//MyLED fet1(FETPIN_1, false, &mcp);
-//MyLED fet2(FETPIN_2, false, &mcp);
+MyLED fet1(FETPIN_1, false, &mcp);
+MyLED fet2(FETPIN_2, false, &mcp);
 
 // RFID reader
 
@@ -226,20 +226,16 @@ void setup() {
   buttonYellow.begin();
   buttonGreen.begin();
 
-  // start LEDS
+  // begin leds
   orange.begin();
   red.begin();
   yellow.begin();
   green.begin();
-  //fet1.begin();
-  //fet2.begin();
-  
-  orange.set(MyLED::LED_OFF);
-  red.set(MyLED::LED_OFF);
-  yellow.set(MyLED::LED_OFF);
-  green.set(MyLED::LED_OFF);
-  //fet1.set(MyLED::LED_FLASH);
-  //fet2.set(MyLED::LED_OFF);
+  fet1.begin();
+  fet2.begin();
+
+  fet1.set(MyLED::LED_ON);
+  fet2.set(MyLED::LED_ON);
   
   client.setCACert(rootCACertificate);
 
@@ -291,10 +287,8 @@ void setup() {
   Log.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 }
 
-void showState() {
+void showState() {  
   if (!dirty) return;
-
-  //fet2.set(MyLED::LED_OFF);
   
   if (machinestate.state() == DEACTIVATING) {
     orange.set(MyLED::LED_FLASH);
