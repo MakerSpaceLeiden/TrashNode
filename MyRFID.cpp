@@ -82,7 +82,7 @@ void MyRFID::loop() {
               strncpy(lasttag, tag, sizeof(tag));
   
               if (!_swipe_cb || (_swipe_cb(lasttag) != ACNode::CMD_CLAIMED)) {
-                    // Simple approval request; default is to 'energise' the contactor on 'machine'.
+                 // Simple approval request; default is to 'energise' the contactor on 'machine'.
                  Log.println("Requesting approval");
                 // _acnode->request_approval_devices(lasttag, NULL,NULL, useTagsStoredInCache);
               } else {

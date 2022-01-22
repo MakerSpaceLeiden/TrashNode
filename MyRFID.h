@@ -27,6 +27,8 @@ class MyRFID : public ACBase {
 
     void report(JsonObject& report);
 
+    const char* getLastTag() { return lasttag; }
+
     typedef std::function<ACBase::cmd_result_t(const char *)> THandlerFunction_SwipeCB;
 
     MyRFID& onSwipe(THandlerFunction_SwipeCB fn) { _swipe_cb = fn; return *this; };
@@ -40,7 +42,7 @@ class MyRFID : public ACBase {
     
     THandlerFunction_SwipeCB _swipe_cb = NULL;
 
-    char lasttag[MAX_TAG_LEN * 4];      // Up to a 3 digit byte and a dash or terminating \0. */
+    char lasttag[MAX_TAG_LEN * 4] {0};      // Up to a 3 digit byte and a dash or terminating \0. */
     unsigned long lastswipe, _scan, _miss;
     unsigned long nextCheck = 0;
     bool tagDecoded = false;

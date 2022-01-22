@@ -1,5 +1,3 @@
-#define MQTT_MAX_PACKET_SIZE (1024)
-
 #include <PowerNodeV11.h> // -- this is an olimex board.
 #include <ACNode.h>
 #include "MachineState.h"
@@ -195,6 +193,7 @@ void onButtonPressed(int pin, int state) {
    }
    if (machinestate.state() == ACTIVE) {
       actualPosition = pin;
+      Log.printf("tag %s indicated position is now %d\n", reader.getLastTag(), actualPosition);
    } 
 }
 
@@ -266,19 +265,24 @@ void setup() {
 
   node.onApproval([](const char * machine) {
     // machinestate = BYEBYE;
-    Log.printf("approval %s\n");
+    //Log.printf("approval %s\n", machine);
     machinestate = ACTIVE;
   });
 
   node.onDenied([](const char * machine) {
     // machinestate = REJECTED;
-    Log.printf("denied %s\n");
+    //Log.printf("denied %s\n", machine);
     machinestate = DEACTIVATING;
+  });
+
+  node.onReport([](JsonObject  & report) {
+    Log.println("reporting...");
+    // report["swipeouts"] = swipeouts_count;
   });
 
   reader.onSwipe([](const char * tag) -> ACBase::cmd_result_t {
     if (machinestate.state() == MachineState::WAITINGFORCARD) {
-      node.request_approval(tag, "small-container", "trash", false);
+      node.request_approval(tag, "energize", "small-container", false);
       machinestate = MachineState::CHECKINGCARD;
     }
     resetNFCReader(false);
@@ -305,6 +309,8 @@ void setup() {
 }
 
 void showState() {  
+
+  
   if (!dirty) return;
   
   if (machinestate.state() == DEACTIVATING) {
