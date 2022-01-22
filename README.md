@@ -29,6 +29,13 @@ Vervolg (MVP?)
 - Een 'swipe' waarmee de uitvoerder van de actie wordt geïdentificeerd en/of geautoriseerd
 - Een rapportage van de 'state' terug naar het backend-systeem
 
+Build
+=====
 
+Dit compileert tegen de ACNode arduino-library uit: ```git@github.com:MakerSpaceLeiden/AccesSystem.git``` (directory: ```lib-arduino/ACNode```, zie ook de README.md aldaar), met de volgende kanttekeningen:
+
+- Oorspronkelijk was het nodig om de laatste 1.0.x-versie van de Espressif esp32 software te installeren (versie 1.0.6), er was een probleem in de ACNode-code die gebruik van 2.0.x verhinderende. Dat zou gefixed moeten zijn, maar dat is nog niet getest.
+- In de trashnode wordt een aangepaste verie van RFID.{h|cpp} gebruikt ("MyRFID"), voor gebruik van een PN532 via i2c zonder reset en zonder irq. Dat zou misschien nog eens naar upstream gemerged kunnen worden.
+- In ```/Arduino/libraries/PubSubClient/src/PubSubClient.h``` moet ```#define MQTT_MAX_PACKET_SIZE 256``` aangepast worden in ```#define MQTT_MAX_PACKET_SIZE 1024```. Daar zijn vast betere oplossingen voor. Alléén maar een ```#define``` in de code van de trashnode zelf is in ieder geval niet voldoende.
 
 
