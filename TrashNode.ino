@@ -1,3 +1,4 @@
+#define MQTT_MAX_PACKET_SIZE (1024)
 
 #include <PowerNodeV11.h> // -- this is an olimex board.
 #include <ACNode.h>
@@ -202,10 +203,12 @@ void setup() {
   Serial.println("\n\n\n");
   Serial.println("Booted: " __FILE__ " " __DATE__ " " __TIME__ );
 
+  Serial.printf("MQTT_MAX_PACK_SIZE == %d\n", MQTT_MAX_PACKET_SIZE);
+  
   now = millis();
 
   // TODO: find out more on this MQTT-stuff
-  node.set_mqtt_prefix("test");
+  node.set_mqtt_prefix("ac");
   node.set_master("master");
 
   // i2C Setup
@@ -261,13 +264,27 @@ void setup() {
     machinestate = MachineState::WAITINGFORCARD;
   });
 
+  node.onApproval([](const char * machine) {
+    // machinestate = BYEBYE;
+    Log.printf("approval %s\n");
+    machinestate = ACTIVE;
+  });
+
+  node.onDenied([](const char * machine) {
+    // machinestate = REJECTED;
+    Log.printf("denied %s\n");
+    machinestate = DEACTIVATING;
+  });
+
   reader.onSwipe([](const char * tag) -> ACBase::cmd_result_t {
     if (machinestate.state() == MachineState::WAITINGFORCARD) {
-      machinestate = ACTIVE;
+      node.request_approval(tag, "small-container", "trash", false);
+      machinestate = MachineState::CHECKINGCARD;
     }
     resetNFCReader(false);
     return ACBase::CMD_CLAIMED;
   });
+  
   reader.set_debug(false);
 
   node.addHandler(&ota);
