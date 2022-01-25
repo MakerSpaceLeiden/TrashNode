@@ -237,7 +237,7 @@ void setup() {
   fet2.begin();
 
   fet1.set(MyLED::LED_ON);
-  fet2.set(MyLED::LED_ON);
+  fet2.set(MyLED::LED_OFF);
   
   client.setCACert(rootCACertificate);
 
@@ -310,15 +310,17 @@ void setup() {
 
 void showState() {  
 
-  
   if (!dirty) return;
   
   if (machinestate.state() == DEACTIVATING) {
     orange.set(MyLED::LED_FLASH);
+    fet2.set(MyLED::LED_ON);
   } else if (machinestate.state() == ACTIVE) {
     orange.set(MyLED::LED_ON);
+    fet2.set(MyLED::LED_ON);
   } else {
     orange.set(MyLED::LED_OFF);
+    fet2.set(MyLED::LED_OFF);
   }
     
   // the code below is intentionally quite verbatim, let's optimize later
