@@ -37,5 +37,24 @@ Dit compileert tegen de ACNode arduino-library uit: ```git@github.com:MakerSpace
 - Oorspronkelijk was het nodig om de laatste 1.0.x-versie van de Espressif esp32 software te installeren (versie 1.0.6), er was een probleem in de ACNode-code die gebruik van 2.0.x verhinderende. Dat zou gefixed moeten zijn, maar dat is nog niet getest.
 - In de trashnode wordt een aangepaste verie van RFID.{h|cpp} gebruikt ("MyRFID"), voor gebruik van een PN532 via i2c zonder reset en zonder irq. Dat zou misschien nog eens naar upstream gemerged kunnen worden.
 - In ```/Arduino/libraries/PubSubClient/src/PubSubClient.h``` moet ```#define MQTT_MAX_PACKET_SIZE 256``` aangepast worden in ```#define MQTT_MAX_PACKET_SIZE 1024```. Daar zijn vast betere oplossingen voor. Alléén maar een ```#define``` in de code van de trashnode zelf is in ieder geval niet voldoende.
+- Er lijkt een bugje in ACNode.cpp te zitten (```ACNode::request_approval```):
+
+```
+    strncpy(tmp, tag, sizeof(MAX_MSG));
+...
+    snprintf(buff, sizeof(MAX_MSG), "%s %s %s %s", operation, moi, target, tmp);
+
+```
+
+moet worden:
+
+```
+    strncpy(tmp, tag, MAX_MSG);
+...
+    snprintf(buff, MAX_MSG, "%s %s %s %s", operation, moi, target, tmp);
+
+```
+
+
 
 

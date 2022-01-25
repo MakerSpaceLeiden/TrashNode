@@ -5,7 +5,7 @@
 // we use a tiny bit of glue.
 static void myflipPin(MyLED * led) { led->_update(); }
 
-MyLED::MyLED(const byte pin, const bool inverted, Adafruit_MCP23XXX *mcp) : _pin(pin) ,_inverted(inverted), _mcp(mcp) {}
+MyLED::MyLED(const byte pin, const bool inverted, Adafruit_MCP23XXX *mcp) : _pin{pin} ,_inverted{inverted}, _mcp{mcp} {}
 
 void MyLED::begin() {
   if (_pin != -1) {
