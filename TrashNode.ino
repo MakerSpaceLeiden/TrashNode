@@ -13,7 +13,7 @@
 #include "MyRFID.h" // (local) NFC version
 #include "MyLED.h"
 
-#define MACHINE "trash"
+#define NODE "trash"
 
 #ifndef OTA_PASSWD
 #define OTA_PASSWD "Foo"
@@ -53,8 +53,8 @@ const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
-// The ACNode "machine"
-ACNode node = ACNode(MACHINE);
+// The ACNode "NODE"
+ACNode node = ACNode(NODE);
 OTA ota = OTA(OTA_PASSWD); // TODO: find out how this actually works
 MqttLogStream mqttlogStream = MqttLogStream();
 
@@ -314,7 +314,7 @@ void showState() {
   
   if (machinestate.state() == DEACTIVATING) {
     orange.set(MyLED::LED_FLASH);
-    fet2.set(MyLED::LED_ON);
+    fet2.set(MyLED::LED_FLASH);
   } else if (machinestate.state() == ACTIVE) {
     orange.set(MyLED::LED_ON);
     fet2.set(MyLED::LED_ON);
@@ -394,6 +394,8 @@ void showState() {
 
 void loop() {
   node.loop();
+  fet1.loop();
+  fet2.loop();
   now = millis();
 
   buttonRed.check();

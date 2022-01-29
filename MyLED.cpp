@@ -20,13 +20,22 @@ void MyLED::begin() {
   set(LED_OFF);
 }
 
+void MyLED::loop() {
+  if (_mcp != nullptr) {
+     // this is a trick, calling _mcp->digitalWrite from ISR causes a crash, so we update the physical led in the loop()
+     // TODO: better solution?
+     _mcp -> digitalWrite(_pin, _currentState); 
+  }
+}
+
 void MyLED::_on() { _set(true); }
 void MyLED::_off() { _set(false); }
 void MyLED::_set(bool on) { 
-  if (_mcp != NULL) {
-    _mcp -> digitalWrite(_pin, on ^ _inverted); 
+  _currentState = on ^ _inverted;
+  if (_mcp != nullptr) {
+    // mcp -> digitalWrite(_pin, _currentState); 
   } else {
-    digitalWrite(_pin, on ^ _inverted); 
+    digitalWrite(_pin, _currentState); 
   }
 }
 

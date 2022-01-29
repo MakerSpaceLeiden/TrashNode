@@ -10,6 +10,7 @@ public:
 
    void begin();
    void set(led_state_t state);
+   void loop();
 
    // Not really public - but needed in the ticker callbacks.
    void _on();
@@ -20,6 +21,7 @@ public:
 private:
    unsigned int _pin,_tock;
    const bool _inverted;
+   bool _currentState;
    Ticker _ticker;
    led_state_t _lastState;
    Adafruit_MCP23XXX *_mcp;
