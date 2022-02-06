@@ -194,6 +194,17 @@ void onButtonPressed(int pin, int state) {
    if (machinestate.state() == ACTIVE) {
       actualPosition = pin;
       Log.printf("tag %s indicated position is now %d\n", reader.getLastTag(), actualPosition);
+      switch (actualPosition) {
+        case BUTTONPIN_RED:
+            node.request_approval(reader.getLastTag(), "outside", "small-container", false);
+          break;
+        case BUTTONPIN_YELLOW:
+            node.request_approval(reader.getLastTag(), "lost", "small-container", false);
+          break;
+        case BUTTONPIN_GREEN:
+            node.request_approval(reader.getLastTag(), "inside", "small-container", false);
+          break;
+      }
    } 
 }
 
@@ -264,9 +275,12 @@ void setup() {
   });
 
   node.onApproval([](const char * machine) {
-    // machinestate = BYEBYE;
-    //Log.printf("approval %s\n", machine);
-    machinestate = ACTIVE;
+    if (machinestate.state() == MachineState::CHECKINGCARD) {
+      // approval of the swipe to turn node ACTIVE
+      machinestate = ACTIVE;
+    } else {
+      Log.printf("approve while state %d\n", machinestate.state());
+    }
   });
 
   node.onDenied([](const char * machine) {
