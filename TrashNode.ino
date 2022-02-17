@@ -95,6 +95,8 @@ bool dirty = true;
 
 unsigned long lastUpdatedChores = 0; // last refreshed chores from API, in ms
 time_t nextCollection = 0; // the very next 'collection', in Unix EPOCH seconds
+unsigned long lastUpdatedNumberOfPeople =0;
+int numberOfPeople = -1; // invalid/unknown
 
 // the position in which we 'want' the trash container vs. the position it actually is
 int wantedPosition=-1;  // initially unknown 
@@ -120,30 +122,44 @@ void resetNFCReader(boolean force) {
   }
 }
 
-void fetchChores() {
+DynamicJsonDocument doc(4096);
 
-  static DynamicJsonDocument doc(4096);
-
-  // fetch data from API, dissect JSON and find the timestamp of next collection 
-
+boolean fetchJSONDocument(String url) {
+  
   HTTPClient http;
-  if (!http.begin(client, "https://makerspaceleiden.nl/crm/chores/api/v1/list/empty_trash_small" )) {
-    Log.println("failed to load chores from server");
-    return;
+  if (!http.begin(client, url )) {
+    Log.printf("failed to json from: %s\n", url);
+    return false;
   }
 
   int httpStatus = http.GET();
 
   if (httpStatus != 200) {
-    Log.printf("GET chores failed, error: %d\n", httpStatus);
-    return;
+    Log.printf("GET %s failed, error: %d\n", url, httpStatus);
+    return false;
   };
 
   DeserializationError error = deserializeJson(doc, http.getString());
   if (error) {
-    Log.println("error parsing chores json");
-    return;
+    Log.printf("error parsing json\n");
+    return false;
   }
+
+  return true;
+}
+
+void fetchNumberOfPeople() {
+
+  if (fetchJSONDocument("https://makerspaceleiden.nl/crm/api/v1/state")) {
+      int numberOfPeople = doc["num_users_in_space"];
+      Log.printf("json says: number of people in space: %d\n", numberOfPeople);
+  }
+  
+}
+
+void fetchChores() {
+
+  if (!fetchJSONDocument("https://makerspaceleiden.nl/crm/chores/api/v1/list/empty_trash_small")) { return ; }
 
   time_t timestamp = 0;
   JsonArray chores = doc["chores"].as<JsonArray>();
@@ -428,6 +444,12 @@ void loop() {
         lastUpdatedChores = now;
         fetchChores();
       }
+      if ((lastUpdatedNumberOfPeople == 0) || (now - lastUpdatedNumberOfPeople) > 1 * 5 * 60 * 1000) {
+        Log.println("updating number of people");
+        lastUpdatedNumberOfPeople = now;
+        fetchNumberOfPeople();
+      }
+
       // yeah! actual business logic :-)
       if (nextCollection == 0 || epochNow == 0) {
         // panic!
