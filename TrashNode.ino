@@ -151,7 +151,7 @@ boolean fetchJSONDocument(String url) {
 void fetchNumberOfPeople() {
 
   if (fetchJSONDocument("https://makerspaceleiden.nl/crm/api/v1/state")) {
-      int numberOfPeople = doc["num_users_in_space"];
+      numberOfPeople = doc["num_users_in_space"];
       Log.printf("json says: number of people in space: %d\n", numberOfPeople);
   }
   
@@ -344,13 +344,10 @@ void showState() {
   
   if (machinestate.state() == DEACTIVATING) {
     orange.set(MyLED::LED_FLASH);
-    fet2.set(MyLED::LED_FLASH);
   } else if (machinestate.state() == ACTIVE) {
     orange.set(MyLED::LED_ON);
-    fet2.set(MyLED::LED_ON);
   } else {
     orange.set(MyLED::LED_OFF);
-    fet2.set(MyLED::LED_OFF);
   }
     
   // the code below is intentionally quite verbatim, let's optimize later
@@ -365,6 +362,7 @@ void showState() {
   
   if (actualPosition >= 0 && wantedPosition <0) {
     // actualPosition known, wanted not
+    fet2.set(MyLED::LED_OFF);
     if (actualPosition == BUTTONPIN_RED) {
       red.set(MyLED::LED_ON); // it in outside
       yellow.set(MyLED::LED_FLASH);
@@ -383,23 +381,22 @@ void showState() {
 
   if (actualPosition < 0 && wantedPosition >= 0) {
     // actual Position not known, wanted known
+    fet2.set(MyLED::LED_OFF);
     if (wantedPosition == BUTTONPIN_RED) {
       red.set(MyLED::LED_FLASH); // it should be outside     
       yellow.set(MyLED::LED_OFF);
       green.set(MyLED::LED_OFF);
-      //fet2.set(MyLED::LED_ON);
     } else {
       red.set(MyLED::LED_OFF);
       yellow.set(MyLED::LED_OFF);
       green.set(MyLED::LED_FLASH); // it should be inside
-      //fet2.set(MyLED::LED_ON);
     }
     return;
   }
 
   // happy
   if (actualPosition == BUTTONPIN_RED) {
-    red.set(MyLED::LED_ON); // it in outside
+    red.set(MyLED::LED_ON); // it is outside
     yellow.set(MyLED::LED_OFF);
     green.set(MyLED::LED_OFF);
   } else if (actualPosition == BUTTONPIN_YELLOW) {
@@ -411,14 +408,19 @@ void showState() {
     yellow.set(MyLED::LED_OFF);
     green.set(MyLED::LED_ON); // it is inside
   }
-  if (actualPosition != wantedPosition) {
-    if (wantedPosition == BUTTONPIN_RED) {
+  if (actualPosition == wantedPosition) {
+    fet2.set(MyLED::LED_OFF);
+  } else if (wantedPosition == BUTTONPIN_RED) {
       red.set(MyLED::LED_FLASH); // it should be outside but it is not
-      //fet2.set(MyLED::LED_ON);
-    } else {
-      green.set(MyLED::LED_FLASH); // it should be inside but it is not              
-      //fet2.set(MyLED::LED_ON);
-    }
+      if (numberOfPeople > 0 && numberOfPeople <= 3) {
+        // it should be outside, it is not and there are 3 or less people inside
+        fet2.set(MyLED::LED_FLASH); 
+      } else {
+        fet2.set(MyLED::LED_ON);
+      }
+  } else {
+    green.set(MyLED::LED_FLASH); // it should be inside but it is not              
+    fet2.set(MyLED::LED_OFF);
   }  
 }
 
@@ -439,15 +441,18 @@ void loop() {
   time_t epochNow = epoch();
   switch (machinestate.state()) {
     case MachineState::WAITINGFORCARD:
-      if ((lastUpdatedChores == 0) || (now - lastUpdatedChores) > 1 * 60 * 60 * 1000) {
-        Log.println("updating chores");
-        lastUpdatedChores = now;
-        fetchChores();
-      }
+
       if ((lastUpdatedNumberOfPeople == 0) || (now - lastUpdatedNumberOfPeople) > 1 * 5 * 60 * 1000) {
         Log.println("updating number of people");
         lastUpdatedNumberOfPeople = now;
         fetchNumberOfPeople();
+        dirty = true;
+      }
+
+      if ((lastUpdatedChores == 0) || (now - lastUpdatedChores) > 1 * 60 * 60 * 1000) {
+        Log.println("updating chores");
+        lastUpdatedChores = now;
+        fetchChores();
       }
 
       // yeah! actual business logic :-)
